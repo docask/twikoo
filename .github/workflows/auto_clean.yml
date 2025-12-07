@@ -3,19 +3,22 @@ on:
   workflow_dispatch:
     inputs:
       days:
-        description: '每个工作流需保留的天数'
-        required: true
-        default: '30'
+        description: "运行记录保留天数"
+        default: "30"
       minimum_runs:
-        description: '每个工作流需保留的最小运行次数'
-        required: true
-        default: '6'
+        description: "保留的最小运行次数"
+        default: "6"
+      use_daily_retention:
+        description: "启用每日保留（按每日最小运行次数保留而非整体保留）"
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
       delete_workflow_pattern:
-        description: '工作流名称或文件名（未设置时匹配所有工作流）'
-        required: false
+        description: "工作流名称或文件名（省略表示全部）。使用`|`分隔多个过滤条件（例如'构建|部署'）"
       delete_workflow_by_state_pattern:
-        description: '按状态筛选工作流：active, deleted, disabled_fork, disabled_inactivity, disabled_manually'
-        required: true
+        description: "工作流状态：活动、已删除、禁用分支、禁用闲置、手动禁用"
         default: "ALL"
         type: choice
         options:
@@ -25,8 +28,7 @@ on:
           - disabled_inactivity
           - disabled_manually
       delete_run_by_conclusion_pattern:
-        description: '根据运行结果删除实例：需操作、已取消、失败、跳过、成功'
-        required: true
+        description: "运行结果：需操作、已取消、失败、跳过、成功"
         default: "ALL"
         type: choice
         options:
@@ -38,11 +40,15 @@ on:
           - skipped
           - success
       dry_run:
-        description: '记录模拟变更，不执行实际删除'
-        required: false
+        description: "模拟删除操作"
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
 
 jobs:
-  del_runs:
+  delete-runs:
     runs-on: ubuntu-latest
     permissions:
       actions: write
@@ -55,12 +61,13 @@ jobs:
           repository: ${{ github.repository }}
           retain_days: ${{ github.event.inputs.days }}
           keep_minimum_runs: ${{ github.event.inputs.minimum_runs }}
+          use_daily_retention: ${{ github.event.inputs.use_daily_retention }}
           delete_workflow_pattern: ${{ github.event.inputs.delete_workflow_pattern }}
           delete_workflow_by_state_pattern: ${{ github.event.inputs.delete_workflow_by_state_pattern }}
           delete_run_by_conclusion_pattern: >-
             ${{
-              startsWith(github.event.inputs.delete_run_by_conclusion_pattern, 'Unsuccessful:')
-              && 'action_required,cancelled,failure,skipped'
-              || github.event.inputs.delete_run_by_conclusion_pattern
+              startsWith(github.event.inputs.delete_run_by_conclusion_pattern, 'Unsuccessful:') &&
+              'action_required,cancelled,failure,skipped' ||
+              github.event.inputs.delete_run_by_conclusion_pattern
             }}
           dry_run: ${{ github.event.inputs.dry_run }}
